@@ -2,30 +2,32 @@
 # 2) async tasks
 # asyncio:
 #   it provides infrastructure for writing single-threaded concurrent code
-#   it uses coroutines, multiplexing I/O access over sockets and other resources, running network clients and servers,
-#     and other related primitives
+#   it uses coroutines, multiplexing I/O access over sockets and other resources
+#     ex. running network clients and servers, and other related primitives
 #   it provides a framework that revolves around the event loop
 # coroutine:
 #   a special function that can give up control to its caller without losing its state (i.e. yield)
 #     ex. it can be a consumer and an extension of a generator
 #   when you call a coroutine function, it doesn’t actually execute
-#     instead it returns a coroutine object that you can pass to the event loop to have it executed later/immediately
+#     instead it returns a coroutine object
+#     you can then pass the coroutine object to an event loop to have it executed (later/immediately)
 # event loop:
 #   it waits for some task to happen and then acts on the event
-#   it is s responsible for handling such things as I/O and system events
-#   it basically says when event A happens, react with function B
+#   it is responsible for handling events: ex. I/O and system events
+#   it basically says when some event A happens, react with function B
 # future:
 #   an object that represents the result of work that has not yet completed
 #   event loop can watch for future objects and wait for them to finish
 #   when a future finishes, it is set to done
-# Task:
-#   a wrapper for a coroutine that is also a subclass of Future
-#   they give you the ability to keep track of when they finish processing
-#     as they are a type of Future, other coroutines can wait for a task, and
-#     you can also grab the result of a task when it’s done processing
-#   you can schedule a Task using the event loop
+# task:
+#   a wrapper for a coroutine which is also a subclass of future
+#     wrapped by asyncio.ensure_future([coroutine])
+#   they give you the ability to keep track of them when they finish processing
+#     you can grab the result of a task when it’s done processing
+#     as they are a type of future, other coroutines can also wait for a task
+#   you can schedule (wait for) a task using an event loop
 # coroutines  vs. threads
-#   they benefits over threads is that they don’t use very much memory to execute
+#   they benefits over threads in that they don’t use very much memory to execute
 # native coroutine
 #   defined by async and await
 #   ex. async def my_coroutine():
@@ -47,8 +49,8 @@ if __name__ == '__main__':
     #    a) it fetches response asynchronously, then
     #    b) it reads response body in asynchronous manner
     async def async_http(url):
-        async with aiohttp.ClientSession() as session: # use ClientSession as primary interface to make requests
-            async with session.get(url) as response:   # a) get  response asynchronously
+        async with aiohttp.ClientSession(headers=None) as session: # use ClientSession as primary interface to make requests
+            async with session.get(url, timeout=0) as response:   # a) get  response asynchronously
                 # because response.read() is async operation, it does not return result immediately
                 #   instead, it returns a generator
                 # the generator needs to be called and executed, so we need to add await keyword here
@@ -80,19 +82,18 @@ if __name__ == '__main__':
     for url in urls:
         task = asyncio.ensure_future(async_http(url))
         tasks.append(task)
-    loop = asyncio.get_event_loop()              # create instance of asyncio loop
-    loop.run_until_complete(asyncio.wait(tasks)) # put future into the loop
+    loop = asyncio.get_event_loop()                   # create instance of asyncio loop
+    loop.run_until_complete(asyncio.wait(tasks))      # asyncio.wait() for multiple tasks in an event loop
     for task in tasks:
         print(task.result())
 
     # example3: collect multiple responses (keep it in list, not just print it out)
     async def fetch(url, session):
-        async with session.get(url) as response: # a) get  response asynchronously
-            return await response.read()         # b) read response asynchronously
+        async with session.get(url) as response:      # a) get response asynchronously
+            return await response.read()              # b) read response asynchronously
 
-    # get all responses within one Client session,
-    # keep connection alive for all requests.
-    async def run():
+    # get all responses within one Client session, and keep connection alive for all requests.
+    async def fetch_all(urls):
         async with aiohttp.ClientSession() as session:
             tasks = []
             for url in urls:
@@ -103,7 +104,7 @@ if __name__ == '__main__':
                 tasks.append(task)
             # asyncio.gather():
             #   this collects bunch of Future objects in one list (place) and waits for all of them to finish
-            return await asyncio.gather(*tasks) # responses: all response bodies
+            return await asyncio.gather(*tasks)       # wait for all tasks to complete (get all response bodies)
             # note:
             #   this returns a future aggregating results from the given co-routine objects or futures
             #   all futures must share the same event loop
@@ -115,7 +116,7 @@ if __name__ == '__main__':
             # we need await keyword here
             #   always remember about using await keyword if you are awaiting something
     loop = asyncio.get_event_loop()
-    gathered_task = asyncio.ensure_future(run())
+    gathered_task = asyncio.ensure_future(fetch_all(urls))
     loop.run_until_complete(gathered_task)
     for result in gathered_task.result():
         print(result)
